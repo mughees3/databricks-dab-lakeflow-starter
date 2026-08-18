@@ -1,0 +1,33 @@
+# =============================================================================
+# resources/dashboard.yml  --  AI/BI dashboard on the Gold output
+# =============================================================================
+# Deploys the serialized AI/BI (Lakeview) dashboard stored at
+# src/dashboards/lakeflow_demo.lvdash.json. The dashboard reads the Gold table
+# produced by the pipeline and renders a summary metric plus category/trend
+# views.
+#
+# Dashboard resource reference:
+# https://docs.databricks.com/aws/en/dev-tools/bundles/resources
+#
+# IMPORTANT -- catalog/schema in the dashboard queries:
+#   The bundle does NOT substitute ${var.*} inside the .lvdash.json file, so the
+#   dataset SQL in that file targets a fixed catalog/schema. The shipped file
+#   uses `main`.`lakeflow_demo` (the top-level variable defaults). If your dev
+#   schema differs (it does by default -- dev uses a per-user schema), either:
+#     * point the dashboard at the shared prod-style schema, or
+#     * edit the two table references in the .lvdash.json, or
+#     * open the deployed dashboard and repoint its datasets in the UI.
+#   See docs/customization.md ("Modify a dashboard") for details.
+# =============================================================================
+
+resources:
+  dashboards:
+    lakeflow_demo_dashboard:
+      display_name: Lakeflow Demo -- Gold Metrics
+      # Path relative to THIS file (resources/).
+      file_path: ../src/dashboards/lakeflow_demo.lvdash.json
+      # SQL warehouse that runs the dashboard queries. Supplied via variable so
+      # no workspace-specific id is committed. Deploy fails until this is a real
+      # warehouse id (the CHANGE_ME default still passes `bundle validate`).
+      warehouse_id: ${var.warehouse_id}
+      # embed_credentials: false  # (default) viewers run queries as themselves

@@ -1,0 +1,147 @@
+{
+  "datasets": [
+    {
+      "name": "ds_summary",
+      "displayName": "Revenue summary",
+      "queryLines": [
+        "SELECT\n",
+        "  SUM(total_revenue) AS total_revenue,\n",
+        "  SUM(order_count)   AS total_orders\n",
+        "FROM main.lakeflow_demo.gold_daily_category_revenue"
+      ]
+    },
+    {
+      "name": "ds_by_category",
+      "displayName": "Revenue by category",
+      "queryLines": [
+        "SELECT product_category, SUM(total_revenue) AS revenue\n",
+        "FROM main.lakeflow_demo.gold_daily_category_revenue\n",
+        "GROUP BY product_category\n",
+        "ORDER BY revenue DESC"
+      ]
+    },
+    {
+      "name": "ds_trend",
+      "displayName": "Daily revenue",
+      "queryLines": [
+        "SELECT order_date, SUM(total_revenue) AS revenue\n",
+        "FROM main.lakeflow_demo.gold_daily_category_revenue\n",
+        "GROUP BY order_date\n",
+        "ORDER BY order_date"
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "page_overview",
+      "displayName": "Overview",
+      "layout": [
+        {
+          "widget": {
+            "name": "w_title",
+            "textbox_spec": "# Lakeflow Demo -- Gold Metrics\nDaily revenue produced by the bundle's Bronze -> Silver -> Gold pipeline."
+          },
+          "position": { "x": 0, "y": 0, "width": 6, "height": 2 }
+        },
+        {
+          "widget": {
+            "name": "w_total_revenue",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_summary",
+                  "fields": [
+                    { "name": "total_revenue", "expression": "`total_revenue`" }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "total_revenue",
+                  "displayName": "Total revenue"
+                }
+              }
+            }
+          },
+          "position": { "x": 0, "y": 2, "width": 6, "height": 3 }
+        },
+        {
+          "widget": {
+            "name": "w_by_category",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_by_category",
+                  "fields": [
+                    { "name": "product_category", "expression": "`product_category`" },
+                    { "name": "sum_revenue", "expression": "SUM(`revenue`)" }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "product_category",
+                  "scale": { "type": "categorical" },
+                  "displayName": "Product category"
+                },
+                "y": {
+                  "fieldName": "sum_revenue",
+                  "scale": { "type": "quantitative" },
+                  "displayName": "Revenue"
+                }
+              }
+            }
+          },
+          "position": { "x": 0, "y": 5, "width": 3, "height": 6 }
+        },
+        {
+          "widget": {
+            "name": "w_trend",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_trend",
+                  "fields": [
+                    { "name": "order_date", "expression": "`order_date`" },
+                    { "name": "sum_revenue", "expression": "SUM(`revenue`)" }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "order_date",
+                  "scale": { "type": "temporal" },
+                  "displayName": "Order date"
+                },
+                "y": {
+                  "fieldName": "sum_revenue",
+                  "scale": { "type": "quantitative" },
+                  "displayName": "Revenue"
+                }
+              }
+            }
+          },
+          "position": { "x": 3, "y": 5, "width": 3, "height": 6 }
+        }
+      ]
+    }
+  ]
+}

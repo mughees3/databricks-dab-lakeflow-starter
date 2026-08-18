@@ -1,0 +1,22 @@
+# Minimal project metadata for local tooling only (tests + linting).
+# This is NOT required to deploy the bundle; it just supports `pytest` and
+# `ruff` for the local static checks in tests/.
+[project]
+name = "aws-dab-lakeflow-starter"
+version = "0.1.0"
+description = "AWS Databricks DAB starter: Lakeflow pipeline + job + dashboard"
+requires-python = ">=3.9"
+dependencies = []
+
+[dependency-groups]
+dev = [
+  "pytest>=7",
+  "pyyaml>=6",
+  "ruff>=0.4",
+]
+
+[tool.ruff]
+line-length = 120
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

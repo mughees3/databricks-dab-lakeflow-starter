@@ -1,0 +1,49 @@
+# =============================================================================
+# resources/pipeline.yml  --  Lakeflow Spark Declarative Pipeline
+# =============================================================================
+# This file is BUNDLE CONFIGURATION: it tells Databricks *how* to create and
+# run the pipeline (name, compute, catalog/schema, where the code lives).
+#
+# The pipeline SOURCE CODE lives separately under src/pipeline/transformations/
+# (bronze.py, silver.py, gold.py). Keeping config and code apart means you can
+# change compute or the target schema without touching transformation logic,
+# and vice-versa.
+#
+# "Lakeflow Spark Declarative Pipelines" is the current name for what was
+# previously called Delta Live Tables (DLT). Resource syntax reference:
+# https://docs.databricks.com/aws/en/dev-tools/bundles/resources
+# =============================================================================
+
+resources:
+  pipelines:
+    # Stable resource key. Other resources reference this pipeline as
+    # ${resources.pipelines.lakeflow_demo_pipeline.id}.
+    lakeflow_demo_pipeline:
+      # In `mode: development` the CLI prefixes the name with "[dev <user>]"
+      # automatically, so dev and prod names never collide.
+      name: lakeflow_demo_pipeline
+
+      # Unity Catalog destination. Both come from bundle variables so the same
+      # code lands in a per-user dev schema or a shared prod schema.
+      catalog: ${var.catalog}
+      schema: ${var.schema}
+
+      # Serverless is the simplest, cheapest, and most portable compute for a
+      # new UC workspace: no cluster to size, size, or keep warm. To use classic
+      # compute instead, set `serverless: false` and add a `clusters:` block
+      # (see docs/customization.md).
+      serverless: true
+
+      # Release channel (CURRENT = stable). Configurable via variable.
+      channel: ${var.pipeline_channel}
+
+      # Root of the pipeline source tree in the deployed bundle. Paths in this
+      # file are relative to THIS file (resources/), hence the "../src/...".
+      root_path: ../src/pipeline
+
+      # Which files make up the pipeline. The glob picks up every transformation
+      # module. Add new .py files under transformations/ and they are included
+      # automatically -- no change needed here.
+      libraries:
+        - glob:
+            include: ../src/pipeline/transformations/**

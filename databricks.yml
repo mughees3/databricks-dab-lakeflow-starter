@@ -1,0 +1,122 @@
+# =============================================================================
+# databricks.yml  --  root Databricks Asset Bundle (DAB) definition
+# =============================================================================
+# A "Declarative Automation Bundle" (DAB) -- commonly still called a
+# "Databricks Asset Bundle" -- describes a set of Databricks resources
+# (pipelines, jobs, dashboards, ...) as source-controlled YAML plus source
+# code. You deploy the whole bundle to a workspace with the Databricks CLI.
+#
+# Docs: https://docs.databricks.com/aws/en/dev-tools/bundles/
+#
+# This file is the ENTRY POINT. It declares:
+#   * the bundle name / identity
+#   * which resource files to include
+#   * the variables that make the bundle portable
+#   * the deployment "targets" (dev and prod) and their per-target values
+#
+# Resource *definitions* live in resources/*.yml. Source *code* lives in src/.
+# Keep that separation: config here, code there.
+# =============================================================================
+
+bundle:
+  name: aws-dab-lakeflow-starter
+  # A stable, unique id for this bundle. Generated once; do not change it.
+  uuid: ff102622-0288-4f5b-b4c4-851482570868
+
+# Pull in every resource definition. One resource per file under resources/.
+include:
+  - resources/*.yml
+
+# -----------------------------------------------------------------------------
+# Variables
+# -----------------------------------------------------------------------------
+# Variables are declared here and assigned per-target below (or overridden on
+# the command line with `--var key=value`). Reference them anywhere as
+# ${var.<name>}. This is how the same code deploys to different catalogs,
+# schemas, and compute without editing source.
+# -----------------------------------------------------------------------------
+variables:
+  catalog:
+    description: Unity Catalog catalog that the pipeline writes to.
+    # Default assumes the standard UC "main" catalog exists and you can create
+    # schemas/tables in it. Change per target below or with --var.
+    default: main
+
+  schema:
+    description: >-
+      Schema (database) inside the catalog for the Bronze/Silver/Gold tables.
+      In dev this is per-user so multiple engineers never collide.
+    default: lakeflow_demo
+
+  warehouse_id:
+    description: >-
+      SQL warehouse ID used by the AI/BI dashboard to run its queries.
+      REQUIRED to deploy the dashboard. Find it under SQL Warehouses in the UI
+      (the ID in the URL /sql/warehouses/<id>) or run:
+        databricks warehouses list
+      Leave as the CHANGE_ME placeholder and the bundle still validates; the
+      dashboard will only deploy once a real ID is supplied (set it per target
+      below, via --var warehouse_id=..., or with the DATABRICKS_WAREHOUSE
+      pattern documented in docs/customization.md).
+    default: CHANGE_ME_WAREHOUSE_ID
+
+  pipeline_channel:
+    description: >-
+      Lakeflow pipeline release channel. CURRENT is the stable default;
+      PREVIEW opts into the next runtime. Configurable so customers can test.
+    default: CURRENT
+
+# -----------------------------------------------------------------------------
+# Targets
+# -----------------------------------------------------------------------------
+# A target is a named deployment environment. Select one with `-t <name>`.
+# `dev` is the default; `prod` must be requested explicitly with `-t prod`.
+#
+# NOTE ON WORKSPACE HOST: this file intentionally does NOT hardcode a workspace
+# URL. The CLI resolves the host from your auth context, in this order:
+#   1. `-p <profile>` / the default profile in ~/.databrickscfg
+#   2. the DATABRICKS_HOST environment variable
+#   3. a `workspace.host:` you add to a target below (uncomment and set it)
+# See docs/README (Authentication) for `databricks auth login --host ...`.
+# -----------------------------------------------------------------------------
+targets:
+  # ---- Development (default) ------------------------------------------------
+  dev:
+    mode: development            # dev copies: resources get a "[dev <user>]"
+                                 # name prefix, schedules/triggers are paused,
+                                 # and concurrent deployments are isolated.
+    default: true
+    # Uncomment and set to pin this target to a specific workspace instead of
+    # relying on your CLI profile:
+    # workspace:
+    #   host: https://<your-workspace>.cloud.databricks.com
+    variables:
+      # catalog inherits the top-level default (main). Override here if needed.
+      # Per-user schema keeps each engineer's tables separate in a shared
+      # workspace. short_name is derived from your login (e.g. "jane_doe").
+      schema: ${workspace.current_user.short_name}_lakeflow_demo
+      # warehouse_id / pipeline_channel inherit the top-level defaults unless
+      # overridden here.
+
+  # ---- Production (explicit `-t prod` required) -----------------------------
+  prod:
+    mode: production             # prod: no name prefixing, no per-user paths,
+                                 # schedules run, stricter validation.
+    workspace:
+      # Deterministic, single, restricted deployment-state path. This must NOT
+      # live under /Shared. Replace the principal below with the identity that
+      # owns production (a service principal is strongly recommended).
+      root_path: /Workspace/Users/CHANGE_ME_PROD_PRINCIPAL/.bundle/${bundle.name}/${bundle.target}
+    variables:
+      catalog: main              # e.g. change to a dedicated "prod" catalog
+      schema: lakeflow_demo_prod # fixed, shared prod schema (not per-user)
+    # Run production resources as an explicit identity. Uncomment and set to a
+    # service principal application id (recommended) or a user_name. Leaving
+    # this out runs resources as the deploying identity.
+    # run_as:
+    #   service_principal_name: CHANGE_ME_SERVICE_PRINCIPAL_APP_ID
+    permissions:
+      # Grant management on all deployed resources to the prod owner. Replace
+      # with your service principal or admin group. Do not invent a real user.
+      - service_principal_name: CHANGE_ME_SERVICE_PRINCIPAL_APP_ID
+        level: CAN_MANAGE

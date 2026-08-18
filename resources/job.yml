@@ -1,0 +1,89 @@
+# =============================================================================
+# resources/job.yml  --  Lakeflow Job that orchestrates the pipeline
+# =============================================================================
+# This Job ties the workload together:
+#   1. refresh_pipeline  -> refreshes the Lakeflow pipeline (Bronze->Silver->Gold)
+#   2. validate_gold     -> runs a notebook that checks the Gold output exists,
+#                           has rows, and has the expected columns (fails loudly
+#                           if the pipeline "succeeded" but produced nothing)
+#   3. demo_overview     -> (optional) runs a read-only walkthrough notebook
+#
+# Task 2 runs only AFTER task 1 succeeds; task 3 only after task 2 succeeds.
+# The Job is safe to run repeatedly -- every task is idempotent.
+#
+# Job resource reference:
+# https://docs.databricks.com/aws/en/dev-tools/bundles/resources
+# =============================================================================
+
+resources:
+  jobs:
+    # Stable resource key -- this is the name used with `databricks bundle run`.
+    lakeflow_demo_job:
+      name: lakeflow_demo_job
+
+      # ---- Job-level parameters -------------------------------------------
+      # Exposed to tasks and overridable at run time
+      # (`databricks bundle run lakeflow_demo_job -t dev -- --catalog X`).
+      parameters:
+        - name: catalog
+          default: ${var.catalog}
+        - name: schema
+          default: ${var.schema}
+
+      # ---- Reliability defaults (no customer identity required) ------------
+      # A run that stalls is failed after 1 hour rather than hanging forever.
+      timeout_seconds: 3600
+      # Only one run at a time; extra triggers queue instead of piling up.
+      max_concurrent_runs: 1
+      queue:
+        enabled: true
+
+      # Notifications are intentionally NOT configured with a real address.
+      # Uncomment and set your own to receive failure emails:
+      # email_notifications:
+      #   on_failure:
+      #     - CHANGE_ME@example.com
+
+      # ---- Tasks -----------------------------------------------------------
+      tasks:
+        # 1) Refresh the pipeline defined in resources/pipeline.yml. The
+        #    pipeline_id is resolved from the bundle -- no hardcoded id.
+        - task_key: refresh_pipeline
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.lakeflow_demo_pipeline.id}
+            # full_refresh: false -> incremental. Set true to rebuild from
+            # scratch (the synthetic data is deterministic either way).
+            full_refresh: false
+
+        # 2) Validate the Gold output. Runs only if the refresh succeeded.
+        #    Fails with a clear message if Gold is missing/empty/malformed.
+        - task_key: validate_gold
+          depends_on:
+            - task_key: refresh_pipeline
+          notebook_task:
+            notebook_path: ../src/notebooks/validate_gold.py
+            # Notebook widgets read these to locate the Gold table.
+            base_parameters:
+              catalog: ${var.catalog}
+              schema: ${var.schema}
+          # Retry once in case of a transient warehouse/compute hiccup.
+          max_retries: 1
+          min_retry_interval_millis: 30000
+          retry_on_timeout: false
+
+        # 3) OPTIONAL walkthrough. Read-only; safe but not required for prod.
+        #    Delete this task if you do not want the demo notebook exercised by
+        #    the Job. It never modifies data.
+        - task_key: demo_overview
+          depends_on:
+            - task_key: validate_gold
+          notebook_task:
+            notebook_path: ../src/notebooks/demo_overview.py
+            base_parameters:
+              catalog: ${var.catalog}
+              schema: ${var.schema}
+
+      # No compute block is specified for the notebook tasks: they run on
+      # serverless compute by default (requires serverless enabled in the
+      # workspace). To pin classic compute instead, add a `job_clusters:` block
+      # and a `job_cluster_key` on each task -- see docs/customization.md.
